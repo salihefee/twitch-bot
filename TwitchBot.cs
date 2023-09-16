@@ -51,7 +51,7 @@ public partial class TwitchBot
         // osu! login
         await osuOutgoing.WriteLineAsync($"PASS {osuIrcPass}");
         await osuOutgoing.WriteLineAsync($"NICK salihefee");
-        await osuOutgoing.WriteLineAsync($"PRIVMSG salihefee :Bot started");
+        await osuOutgoing.WriteLineAsync($"PRIVMSG {channel} :Bot started");
 
         while (true)
         {
