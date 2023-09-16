@@ -54,7 +54,7 @@ public partial class TwitchBot
             var twitchLine = await twitchIncoming.ReadLineAsync();
             Console.WriteLine(twitchLine);
 
-            var split = twitchLine!.Split(" ");
+            var split = twitchLine!.Split(" "); 
 
             if (twitchLine.StartsWith("PING"))
             {
