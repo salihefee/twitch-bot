@@ -1,68 +1,64 @@
-using System;
-using System.IO;
-using System.Net.Http;
 using System.Net.Sockets;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using Newtonsoft.Json;
 
 namespace twitch_bot;
 
 public partial class TwitchBot
 {
-    private const string twitchIp = "irc.chat.twitch.tv";
-    private const int twitchPort = 6667;
-    private const string osuIp = "irc.ppy.sh";
-    private const int osuPort = 6667;
+    private const string TwitchIp = "irc.chat.twitch.tv";
+    private const int TwitchPort = 6667;
+    private const string OsuIp = "irc.ppy.sh";
+    private const int OsuPort = 6667;
 
-    private readonly string nick;
-    private readonly string password;
-    private readonly string channel;
-    private StreamReader? twitchIncoming;
-    private StreamWriter? twitchOutgoing;
-    private StreamWriter? osuOutgoing;
-    private static readonly HttpClient httpClient = new HttpClient();
-    private static readonly string apiKey = Environment.GetEnvironmentVariable("OSU_API_KEY")!;
-    private static readonly string osuIrcPass = Environment.GetEnvironmentVariable("OSU_IRC_PASS")!;
+    private readonly string _nick;
+    private readonly string _password;
+    private readonly string _channel;
+    private StreamReader? _twitchIncoming;
+    private StreamWriter? _twitchOutgoing;
+    private StreamWriter? _osuOutgoing;
+    private static readonly HttpClient HttpClient = new HttpClient();
+    private static readonly string ApiKey = Environment.GetEnvironmentVariable("OSU_API_KEY")!;
+    private static readonly string OsuIrcPass = Environment.GetEnvironmentVariable("OSU_IRC_PASS")!;
 
     public TwitchBot(string nick, string password, string channel)
     {
-        this.nick = nick;
-        this.password = password;
-        this.channel = channel;
+        this._nick = nick;
+        this._password = password;
+        this._channel = channel;
     }
 
     public async Task Start()
     {
-        var twitchTcp = new TcpClient();
-        var osuTcp = new TcpClient();
-        await twitchTcp.ConnectAsync(twitchIp, twitchPort);
-        await osuTcp.ConnectAsync(osuIp, osuPort);
-        twitchIncoming = new StreamReader(twitchTcp.GetStream());
-        twitchOutgoing = new StreamWriter(twitchTcp.GetStream()) { NewLine = "\r\n", AutoFlush = true };
-        osuOutgoing = new StreamWriter(osuTcp.GetStream()) { NewLine = "\r\n", AutoFlush = true };
+        using var twitchTcp = new TcpClient();
+        using var osuTcp = new TcpClient();
+        await twitchTcp.ConnectAsync(TwitchIp, TwitchPort);
+        await osuTcp.ConnectAsync(OsuIp, OsuPort);
+        _twitchIncoming = new StreamReader(twitchTcp.GetStream());
+        _twitchOutgoing = new StreamWriter(twitchTcp.GetStream()) { NewLine = "\r\n", AutoFlush = true };
+        _osuOutgoing = new StreamWriter(osuTcp.GetStream()) { NewLine = "\r\n", AutoFlush = true };
 
         // Twitch login
-        await twitchOutgoing.WriteLineAsync($"PASS {password}");
-        await twitchOutgoing.WriteLineAsync($"NICK {nick}");
-        await twitchOutgoing.WriteLineAsync($"JOIN #{channel}");
-        await twitchOutgoing.WriteLineAsync($"PRIVMSG #{channel} :Bot started.");
+        await _twitchOutgoing.WriteLineAsync($"PASS {_password}");
+        await _twitchOutgoing.WriteLineAsync($"NICK {_nick}");
+        await _twitchOutgoing.WriteLineAsync($"JOIN #{_channel}");
+        await _twitchOutgoing.WriteLineAsync($"PRIVMSG #{_channel} :Bot started.");
         
         // osu! login
-        await osuOutgoing.WriteLineAsync($"PASS {osuIrcPass}");
-        await osuOutgoing.WriteLineAsync($"NICK salihefee");
-        await osuOutgoing.WriteLineAsync($"PRIVMSG {channel} :Bot started");
+        await _osuOutgoing.WriteLineAsync($"PASS {OsuIrcPass}");
+        await _osuOutgoing.WriteLineAsync($"NICK salihefee");
+        await _osuOutgoing.WriteLineAsync($"PRIVMSG {_channel} :Bot started");
 
         while (true)
         {
-            var twitchLine = await twitchIncoming.ReadLineAsync();
+            var twitchLine = await _twitchIncoming.ReadLineAsync();
             Console.WriteLine(twitchLine);
 
             var split = twitchLine!.Split(" "); 
 
             if (twitchLine.StartsWith("PING"))
             {
-                await twitchOutgoing.WriteLineAsync($"PONG {split[1]}");
+                await _twitchOutgoing.WriteLineAsync($"PONG {split[1]}");
                 Console.WriteLine($"PONG {split[1]}");
             }
 
@@ -83,7 +79,7 @@ public partial class TwitchBot
                 try
                 {
                     mapResponse =
-                        await httpClient.GetAsync($"https://osu.ppy.sh/api/get_beatmaps?k={apiKey}&b={mapId}");
+                        await HttpClient.GetAsync($"https://osu.ppy.sh/api/get_beatmaps?k={ApiKey}&b={mapId}");
                 }
                 catch (Exception e)
                 {
@@ -95,16 +91,19 @@ public partial class TwitchBot
                 
                 if (responseContent == "[]")
                 {
-                    await twitchOutgoing.WriteLineAsync($"PRIVMSG #{channel} :The specified beatmap was not found.");
+                    await _twitchOutgoing.WriteLineAsync($"PRIVMSG #{_channel} :The specified beatmap was not found.");
+                    Console.WriteLine($"PRIVMSG #{_channel} :The specified beatmap was not found.");
                 }
                 else
                 {
                     dynamic responseObjects = JsonConvert.DeserializeObject(await mapResponse.Content.ReadAsStringAsync())!;
                     var responseObject = responseObjects[0];
-                    await twitchOutgoing.WriteLineAsync(
-                        $"PRIVMSG #{channel} :Received beatmap {responseObject.artist} - {responseObject.title} [{responseObject.version}] from user {username}");
-                    await osuOutgoing.WriteLineAsync(
+                    await _twitchOutgoing.WriteLineAsync(
+                        $"PRIVMSG #{_channel} :Received beatmap {responseObject.artist} - {responseObject.title} [{responseObject.version}] from user {username}");
+                    Console.WriteLine($"PRIVMSG #{_channel} :Received beatmap {responseObject.artist} - {responseObject.title} [{responseObject.version}] from user {username}");
+                    await _osuOutgoing.WriteLineAsync(
                         $"PRIVMSG salihefee :[{word} {responseObject.artist} - {responseObject.title} [{responseObject.version}]] sent by {username}");
+                    Console.WriteLine($"PRIVMSG salihefee :[{word} {responseObject.artist} - {responseObject.title} [{responseObject.version}]] sent by {username}");
                 }
             }
         }
